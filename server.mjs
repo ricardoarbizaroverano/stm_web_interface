@@ -13,10 +13,12 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN; // Your GitHub token from Heroku 
 // Serve static files from the root directory
 app.use(express.static(path.resolve()));
 
+// Serve the main HTML file
 app.get('/', (req, res) => {
     res.sendFile(path.join(process.cwd(), 'index.html'));
 });
 
+// Handle file uploads
 app.post('/upload', upload.single('file'), async (req, res) => {
     const receivedPassword = req.body.password;
     if (receivedPassword !== 'mst05072024') {
@@ -24,7 +26,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Generate a unique filename based on the existing files in the GitHub repo
-    const repoUrl = 'https://api.github.com/repos/your_username/your_repository/contents/stm_users_mix';
+    const repoUrl = 'https://api.github.com/repos/ricardoarbizaroverano/maquinasonoradeltiempo/contents/stm_users_mix';
     
     try {
         const response = await fetch(repoUrl, {
@@ -40,7 +42,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const newNumber = lastFile ? parseInt(lastFile.split('_')[2].split('.')[0]) + 1 : 1;
 
         const newFileName = `stm_mix_${newNumber}.mp3`;
-        const newFilePath = path.join('stm_users_mix', newFileName);
+        const newFilePath = `stm_users_mix/${newFileName}`;
 
         // Upload the file to GitHub
         const uploadResponse = await fetch(repoUrl, {
