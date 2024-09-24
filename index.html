@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Máquina Sonora del Tiempo</title>
     <style>
-        /* Estilos para el modal de contraseña */
+        /* Styles for the password modal */
         #password-modal {
             display: none;
             position: fixed;
@@ -51,22 +51,22 @@
     <div>
         <h2>Workers</h2>
         <input type="range" id="volume1" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan1" min="-1" max="1" step="0.01" value="0" class="pan-knob">
+        <input type="range" id="pan1" min="-1" max="1" step="0.01" value="0">
     </div>
     <div>
         <h2>Machines</h2>
         <input type="range" id="volume2" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan2" min="-1" max="1" step="0.01" value="0" class="pan-knob">
+        <input type="range" id="pan2" min="-1" max="1" step="0.01" value="0">
     </div>
     <div>
         <h2>Background</h2>
         <input type="range" id="volume3" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan3" min="-1" max="1" step="0.01" value="0" class="pan-knob">
+        <input type="range" id="pan3" min="-1" max="1" step="0.01" value="0">
     </div>
     <div>
         <h2>Areas</h2>
         <input type="range" id="volume4" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan4" min="-1" max="1" step="0.01" value="0" class="pan-knob">
+        <input type="range" id="pan4" min="-1" max="1" step="0.01" value="0">
     </div>
 
     <!-- Play and Stop buttons -->
@@ -76,7 +76,7 @@
     <!-- Render and Save button -->
     <button id="render">Renderizar y Guardar</button>
 
-    <!-- Modal de contraseña -->
+    <!-- Password Modal -->
     <div id="password-modal">
         <div id="password-box">
             <h3>Ingrese la contraseña del operador</h3>
@@ -87,7 +87,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.34/Tone.js"></script>
+    <!-- Include the app.js script at the end of the body -->
     <script src="app.js"></script>
 </body>
 </html>

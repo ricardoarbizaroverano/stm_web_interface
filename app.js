@@ -1,5 +1,6 @@
 // Initialize the AudioContext
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+console.log('AudioContext initialized:', audioContext);
 
 // Create gain nodes and panner nodes for each track
 const gainNodes = [];
@@ -10,7 +11,9 @@ const tracks = [];
 
 // Load the audio files and set up the audio graph
 trackFiles.forEach((track, index) => {
+    console.log(`Setting up track ${index + 1}:`, track);
     const audioElement = new Audio(track);
+    audioElement.crossOrigin = "anonymous"; // Ensure cross-origin compatibility
     const trackSource = audioContext.createMediaElementSource(audioElement);
     const gainNode = audioContext.createGain();
     const pannerNode = audioContext.createStereoPanner();
@@ -27,6 +30,17 @@ trackFiles.forEach((track, index) => {
     pannerNodes.push(pannerNode);
     audioElements.push(audioElement);
     tracks.push(trackSource);
+
+    // Add event listeners for volume and pan controls
+    document.getElementById(`volume${index + 1}`).addEventListener('input', (event) => {
+        gainNode.gain.value = parseFloat(event.target.value);
+        console.log(`Volume for track ${index + 1} set to:`, gainNode.gain.value);
+    });
+
+    document.getElementById(`pan${index + 1}`).addEventListener('input', (event) => {
+        pannerNode.pan.value = parseFloat(event.target.value);
+        console.log(`Pan for track ${index + 1} set to:`, pannerNode.pan.value);
+    });
 });
 
 // Play button event listener
@@ -34,35 +48,39 @@ document.getElementById('play').addEventListener('click', async () => {
     // Ensure the AudioContext is started
     if (audioContext.state === 'suspended') {
         await audioContext.resume();
+        console.log('AudioContext resumed');
     }
 
     // Play each track
-    audioElements.forEach(audioElement => {
+    audioElements.forEach((audioElement, index) => {
         audioElement.loop = true;  // Enable looping
-        audioElement.play();
+        audioElement.play().then(() => {
+            console.log(`Track ${index + 1} playback started`);
+        }).catch(error => {
+            console.error(`Error playing track ${index + 1}:`, error);
+        });
     });
-
-    console.log('Playback started');
 });
 
 // Stop button event listener
 document.getElementById('stop').addEventListener('click', () => {
-    audioElements.forEach(audioElement => {
+    audioElements.forEach((audioElement, index) => {
         audioElement.pause();
         audioElement.currentTime = 0; // Reset playback to start
+        console.log(`Track ${index + 1} playback stopped`);
     });
-
-    console.log('Playback stopped');
 });
 
 // Function to show the password modal
 function showPasswordModal() {
     document.getElementById('password-modal').style.display = 'flex';
+    console.log('Password modal displayed');
 }
 
 // Function to hide the password modal
 function hidePasswordModal() {
     document.getElementById('password-modal').style.display = 'none';
+    console.log('Password modal hidden');
 }
 
 // Render and save the mix
@@ -84,8 +102,12 @@ document.getElementById('submit-password').addEventListener('click', async () =>
 
     if (password !== 'mst05072024') {
         alert('Contraseña incorrecta. No tienes permiso para guardar.');
+        console.log('Incorrect password entered');
         return;
     }
+
+    console.log('Correct password entered');
+    hidePasswordModal();
 
     // Show feedback for correct password
     successMessageElement.innerText = 'Contraseña correcta. Procesando mezcla...';
@@ -96,6 +118,7 @@ document.getElementById('submit-password').addEventListener('click', async () =>
     const destination = audioContext.createMediaStreamDestination();
     tracks.forEach((track, index) => {
         track.connect(destination);
+        console.log(`Track ${index + 1} connected to recording destination`);
     });
 
     // Use MediaRecorder to record the output
@@ -104,36 +127,63 @@ document.getElementById('submit-password').addEventListener('click', async () =>
 
     recorder.ondataavailable = event => {
         chunks.push(event.data);
+        console.log('Data chunk received from recorder');
     };
 
     recorder.onstop = async () => {
-        const blob = new Blob(chunks, { type: 'audio/mp3' });
-        const formData = new FormData();
-        formData.append('file', blob, 'mixture.mp3');
+        console.log('Recording stopped, processing data');
 
-        // Send the audio file to the server
-        const response = await fetch('http://localhost:3000/upload', {
-            method: 'POST',
-            body: formData
-        });
-
-        const result = await response.text();
-        if (response.ok) {
-            successMessageElement.innerText = `Tu mezcla fue guardada con éxito en el llavero #${result}`;
-            successMessageElement.style.color = 'green';
-        } else {
-            successMessageElement.innerText = 'Error al guardar la mezcla: ' + result;
+        // Check if any data was recorded
+        if (chunks.length === 0) {
+            console.error('No data recorded');
+            successMessageElement.innerText = 'Error: No se pudo grabar el audio.';
             successMessageElement.style.color = 'red';
+            successMessageElement.style.display = 'block';
+            return;
         }
 
-        successMessageElement.style.display = 'block';
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        const formData = new FormData();
+        formData.append('file', blob, 'mixture.webm');
+        formData.append('password', password); // Include password in formData
+
+        // Send the audio file to the server
+        console.log('Sending audio file to server');
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.text();
+            console.log('Server response:', result);
+
+            if (response.ok) {
+                successMessageElement.innerText = `Tu mezcla fue guardada con éxito: ${result}`;
+                successMessageElement.style.color = 'green';
+                console.log('Mix saved successfully');
+            } else {
+                successMessageElement.innerText = 'Error al guardar la mezcla: ' + result;
+                successMessageElement.style.color = 'red';
+                console.error('Error saving mix:', result);
+            }
+
+            successMessageElement.style.display = 'block';
+        } catch (error) {
+            console.error('Fetch error:', error);
+            successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
+            successMessageElement.style.color = 'red';
+            successMessageElement.style.display = 'block';
+        }
     };
 
     // Start recording
     recorder.start();
+    console.log('Recording started');
 
     // Stop recording after 10 seconds
     setTimeout(() => {
         recorder.stop();
+        console.log('Recording stopped after 10 seconds');
     }, 10000);
 });

@@ -1,6 +1,5 @@
 import express from 'express';
 import multer from 'multer';
-import fs from 'fs';
 import path from 'path';
 import fetch from 'node-fetch';
 
@@ -13,6 +12,7 @@ if (!GITHUB_TOKEN) {
     console.error('GITHUB_TOKEN is not set in environment variables');
 }
 
+// Middleware to parse JSON and URL-encoded data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -30,12 +30,11 @@ app.get('/', (req, res) => {
 app.post('/upload', upload.single('file'), async (req, res) => {
     console.log('Received POST request on /upload');
 
-    // Since we're using multer, req.body will not include fields unless we use the correct middleware
+    // Extract password from form data
     const receivedPassword = req.body.password || 'not provided';
     console.log('Received password:', receivedPassword);
 
-    // Password validation moved to client-side for security reasons
-    // It's better to handle password validation on the server side
+    // Validate the password
     if (receivedPassword !== 'mst05072024') {
         console.log('Invalid password attempt');
         return res.status(403).send('Invalid password. No permission to save the mix.');
@@ -52,16 +51,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Generate a unique filename based on the existing files in the GitHub repo
-    const repoUrl = 'https://api.github.com/repos/ricardoarbizaroverano/maquinasonoradeltiempo/contents/stm_users_mix';
+    const repoOwner = 'ricardoarbizaroverano';
+    const repoName = 'maquinasonoradeltiempo';
+    const filePathInRepo = 'stm_users_mix'; // Directory in the repo where files are stored
+    const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePathInRepo}`;
 
     try {
         // Fetch existing files from the GitHub repository
         console.log('Fetching existing files from GitHub repository');
-        const response = await fetch(repoUrl, {
+        const response = await fetch(apiUrl, {
             headers: {
-                Authorization: `token ${GITHUB_TOKEN}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
+                Authorization: `Bearer ${GITHUB_TOKEN}`,
+                Accept: 'application/vnd.github.v3+json',
+            },
         });
 
         if (!response.ok) {
@@ -71,14 +73,23 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         }
 
         const files = await response.json();
-        console.log('Existing files retrieved:', files.map(f => f.name));
+        console.log('Existing files retrieved:', files.map((f) => f.name));
 
-        const existingFiles = files.map(file => file.name);
-        const lastFile = existingFiles.filter(file => file.startsWith('stm_mix_') && file.endsWith('.webm')).pop();
-        const newNumber = lastFile ? parseInt(lastFile.split('_')[2].split('.')[0]) + 1 : 1;
+        // Determine the new file name
+        const existingFiles = files.map((file) => file.name);
+        const mixFiles = existingFiles
+            .filter((file) => file.startsWith('stm_mix_') && file.endsWith('.webm'))
+            .sort();
+
+        let newNumber = 1;
+        if (mixFiles.length > 0) {
+            const lastFile = mixFiles[mixFiles.length - 1];
+            const lastNumber = parseInt(lastFile.match(/stm_mix_(\d+)\.webm/)[1], 10);
+            newNumber = lastNumber + 1;
+        }
 
         const newFileName = `stm_mix_${newNumber}.webm`;
-        const newFilePath = `stm_users_mix/${newFileName}`;
+        const newFilePath = `${filePathInRepo}/${newFileName}`;
 
         // Prepare the content to be uploaded
         const fileContent = req.file.buffer.toString('base64');
@@ -87,20 +98,23 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const payload = {
             message: `Add ${newFileName}`,
             content: fileContent,
-            path: newFilePath
+            path: newFilePath,
         };
 
         console.log('Uploading new file to GitHub:', newFileName);
 
         // Upload the file to GitHub
-        const uploadResponse = await fetch(`${repoUrl}/${encodeURIComponent(newFileName)}`, {
-            method: 'PUT',
-            headers: {
-                Authorization: `token ${GITHUB_TOKEN}`,
-                'Accept': 'application/vnd.github.v3+json'
-            },
-            body: JSON.stringify(payload)
-        });
+        const uploadResponse = await fetch(
+            `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${newFilePath}`,
+            {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${GITHUB_TOKEN}`,
+                    Accept: 'application/vnd.github.v3+json',
+                },
+                body: JSON.stringify(payload),
+            }
+        );
 
         if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
