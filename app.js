@@ -89,13 +89,26 @@ function hidePasswordModal() {
     console.log('Password modal hidden');
 }
 
+// Function to show the success modal
+function showSuccessModal() {
+    document.getElementById('success-modal').style.display = 'flex';
+    console.log('Success modal displayed');
+}
+
+// Function to hide the success modal
+function hideSuccessModal() {
+    document.getElementById('success-modal').style.display = 'none';
+    console.log('Success modal hidden');
+}
+
 // Render and save the mix
 document.getElementById('render').addEventListener('click', () => {
     showPasswordModal(); // Show the modal when the render button is clicked
 });
 
-// Close modal button event listener
+// Close modal button event listeners
 document.getElementById('close-modal').addEventListener('click', hidePasswordModal);
+document.getElementById('close-success-modal').addEventListener('click', hideSuccessModal);
 
 // Validate password and proceed with rendering
 document.getElementById('submit-password').addEventListener('click', async () => {
@@ -103,7 +116,6 @@ document.getElementById('submit-password').addEventListener('click', async () =>
     const successMessageElement = document.getElementById('success-message');
 
     // Reset success message
-    successMessageElement.style.display = 'none';
     successMessageElement.innerText = '';
 
     if (password !== 'mst05072024') {
@@ -114,11 +126,11 @@ document.getElementById('submit-password').addEventListener('click', async () =>
 
     console.log('Correct password entered');
     hidePasswordModal();
+    showSuccessModal(); // Show the success modal
 
     // Show feedback for correct password
     successMessageElement.innerText = 'Contraseña correcta, calentando motores temporales';
     successMessageElement.style.color = 'blue';
-    successMessageElement.style.display = 'block';
 
     // Stop playback if any
     audioElements.forEach((audioElement) => {
@@ -148,6 +160,16 @@ document.getElementById('submit-password').addEventListener('click', async () =>
         });
 
         const audioBuffers = await Promise.all(bufferPromises);
+
+        // Verify that audioBuffers contain valid data
+        audioBuffers.forEach((buffer, index) => {
+            const samples = buffer.getChannelData(0);
+            let sum = 0;
+            for (let i = 0; i < samples.length; i++) {
+                sum += Math.abs(samples[i]);
+            }
+            console.log(`Sum of absolute sample values in audio buffer ${index + 1}: ${sum}`);
+        });
 
         // Create an offline context for rendering
         const renderDuration = 30; // seconds
@@ -192,12 +214,19 @@ document.getElementById('submit-password').addEventListener('click', async () =>
         console.log(`Rendered buffer number of channels: ${renderedBuffer.numberOfChannels}`);
         console.log(`Rendered buffer sample rate: ${renderedBuffer.sampleRate}`);
 
-        const sampleData = renderedBuffer.getChannelData(0);
-        let sum = 0;
-        for (let i = 0; i < sampleData.length; i++) {
-            sum += Math.abs(sampleData[i]);
+        const sampleDataLeft = renderedBuffer.getChannelData(0);
+        const sampleDataRight = renderedBuffer.getChannelData(1);
+        let sumLeft = 0;
+        let sumRight = 0;
+        for (let i = 0; i < sampleDataLeft.length; i++) {
+            sumLeft += Math.abs(sampleDataLeft[i]);
+            sumRight += Math.abs(sampleDataRight[i]);
         }
-        console.log(`Sum of absolute sample values in rendered buffer: ${sum}`);
+        console.log(`Sum of absolute sample values in rendered buffer (Left): ${sumLeft}`);
+        console.log(`Sum of absolute sample values in rendered buffer (Right): ${sumRight}`);
+
+        // Play the rendered buffer in the browser for testing
+        playRenderedBuffer(renderedBuffer);
 
         // Encode the rendered buffer to MP3 using lamejs
         console.log('Encoding audio to MP3...');
@@ -212,6 +241,8 @@ document.getElementById('submit-password').addEventListener('click', async () =>
 
         // Send the audio file to the server
         console.log('Sending audio file to server');
+        successMessageElement.innerText = 'Enviando mezcla al servidor...';
+
         try {
             const response = await fetch('/upload', {
                 method: 'POST',
@@ -234,21 +265,31 @@ document.getElementById('submit-password').addEventListener('click', async () =>
                 successMessageElement.style.color = 'red';
                 console.error('Error saving mix:', result);
             }
-
-            successMessageElement.style.display = 'block';
         } catch (error) {
             console.error('Fetch error:', error);
             successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
             successMessageElement.style.color = 'red';
-            successMessageElement.style.display = 'block';
         }
     } catch (error) {
         console.error('Error during rendering:', error);
         successMessageElement.innerText = 'Error al renderizar el audio.';
         successMessageElement.style.color = 'red';
-        successMessageElement.style.display = 'block';
     }
 });
+
+// Function to play the rendered buffer in the browser
+function playRenderedBuffer(buffer) {
+    // Create a buffer source
+    const playbackSource = audioContext.createBufferSource();
+    playbackSource.buffer = buffer;
+
+    // Connect to the destination (speakers)
+    playbackSource.connect(audioContext.destination);
+
+    // Start playback
+    playbackSource.start(0);
+    console.log('Playing rendered buffer in browser');
+}
 
 // Function to encode audio buffer to MP3 using lamejs
 async function encodeMp3(renderedBuffer) {
