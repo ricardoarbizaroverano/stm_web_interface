@@ -52,7 +52,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     // Generate a unique filename based on the existing files in the GitHub repo
     const repoOwner = 'ricardoarbizaroverano';
-    const repoName = 'stm_web_interface'; // Updated repository name
+    const repoName = 'stm_web_interface'; // Ensure this is your repository name
     const filePathInRepo = 'stm_users_mix'; // Directory in the repo where files are stored
     const branch = 'main'; // Adjust if your default branch is different
     const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePathInRepo}?ref=${branch}`;
@@ -84,18 +84,18 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         // Determine the new file name
         const existingFiles = files.map((file) => file.name);
         const mixFiles = existingFiles
-            .filter((file) => file.startsWith('stm_mix_') && file.endsWith('.webm'))
+            .filter((file) => file.startsWith('stm_mix_') && file.endsWith('.mp3')) // Updated extension
             .sort();
 
         let newNumber = 1;
         if (mixFiles.length > 0) {
             const lastFile = mixFiles[mixFiles.length - 1];
-            const match = lastFile.match(/stm_mix_(\d+)\.webm/);
+            const match = lastFile.match(/stm_mix_(\d+)\.mp3/); // Updated extension
             const lastNumber = match ? parseInt(match[1], 10) : 0;
             newNumber = lastNumber + 1;
         }
 
-        const newFileName = `stm_mix_${newNumber}.webm`;
+        const newFileName = `stm_mix_${newNumber}.mp3`; // Updated extension
         const newFilePath = `${filePathInRepo}/${newFileName}`;
 
         // Prepare the content to be uploaded
@@ -108,7 +108,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             branch: branch,
         };
 
-        // Construct the upload URL without encoding slashes
+        // Construct the upload URL
         const uploadUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${newFilePath}`;
 
         console.log('Uploading new file to GitHub:', newFileName);

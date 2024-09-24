@@ -110,7 +110,7 @@ document.getElementById('submit-password').addEventListener('click', async () =>
     hidePasswordModal();
 
     // Show feedback for correct password
-    successMessageElement.innerText = 'Contraseña correcta. Procesando mezcla...';
+    successMessageElement.innerText = 'Contraseña correcta, calentando motores temporales';
     successMessageElement.style.color = 'blue';
     successMessageElement.style.display = 'block';
 
@@ -139,6 +139,10 @@ document.getElementById('submit-password').addEventListener('click', async () =>
             length: audioContext.sampleRate * 30, // 30 seconds duration
             sampleRate: audioContext.sampleRate,
         });
+
+        // Show rendering status message
+        successMessageElement.innerText = 'Viaje sonoro iniciado';
+        successMessageElement.style.color = 'blue';
 
         // Create an array to hold source nodes
         const sourceNodes = [];
@@ -178,84 +182,49 @@ document.getElementById('submit-password').addEventListener('click', async () =>
         const renderedBuffer = await offlineContext.startRendering();
         console.log('Audio rendering completed');
 
-        // Convert the rendered buffer to a Blob
-        const recordedChunks = [];
+        // Encode the rendered buffer to MP3 using lamejs
+        console.log('Encoding audio to MP3...');
+        const mp3Data = await encodeMp3(renderedBuffer);
+        console.log('MP3 encoding completed');
 
-        const dest = audioContext.createMediaStreamDestination();
-        const playbackSource = audioContext.createBufferSource();
-        playbackSource.buffer = renderedBuffer;
-        playbackSource.connect(dest);
-        playbackSource.start();
+        // Create a Blob from the MP3 data
+        const blob = new Blob(mp3Data, { type: 'audio/mp3' });
+        const formData = new FormData();
+        formData.append('file', blob, 'mixture.mp3');
+        formData.append('password', password); // Include password in formData
 
-        const recorder = new MediaRecorder(dest.stream);
+        // Send the audio file to the server
+        console.log('Sending audio file to server');
+        try {
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData,
+            });
 
-        recorder.ondataavailable = (e) => {
-            if (e.data.size > 0) {
-                recordedChunks.push(e.data);
-                console.log('Data chunk received from recorder');
-            }
-        };
+            const result = await response.text();
+            console.log('Server response:', result);
 
-        recorder.onstop = async () => {
-            console.log('Recording stopped, processing data');
+            if (response.ok) {
+                // Extract the mix number from the result
+                const match = result.match(/stm_mix_(\d+)\.mp3 uploaded successfully\./);
+                const mixNumber = match ? match[1] : '1';
 
-            // Check if any data was recorded
-            if (recordedChunks.length === 0) {
-                console.error('No data recorded');
-                successMessageElement.innerText = 'Error: No se pudo grabar el audio.';
+                successMessageElement.innerText = `Felicitaciones, su viaje sonoro se ha guardado en el llavero #${mixNumber}`;
+                successMessageElement.style.color = 'green';
+                console.log('Mix saved successfully');
+            } else {
+                successMessageElement.innerText = 'Tuvimos un error al subir el archivo, intente nuevamente.';
                 successMessageElement.style.color = 'red';
-                successMessageElement.style.display = 'block';
-                return;
+                console.error('Error saving mix:', result);
             }
 
-            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
-            const formData = new FormData();
-            formData.append('file', blob, 'mixture.webm');
-            formData.append('password', password); // Include password in formData
-
-            // Send the audio file to the server
-            console.log('Sending audio file to server');
-            try {
-                const response = await fetch('/upload', {
-                    method: 'POST',
-                    body: formData,
-                });
-
-                const result = await response.text();
-                console.log('Server response:', result);
-
-                if (response.ok) {
-                    // Extract the mix number from the result
-                    const match = result.match(/stm_mix_(\d+)\.webm uploaded successfully\./);
-                    const mixNumber = match ? match[1] : '1';
-
-                    successMessageElement.innerText = `Archivo subido con éxito al llavero sonoro número ${mixNumber}.`;
-                    successMessageElement.style.color = 'green';
-                    console.log('Mix saved successfully');
-                } else {
-                    successMessageElement.innerText = 'Tuvimos un error al subir el archivo, intente nuevamente.';
-                    successMessageElement.style.color = 'red';
-                    console.error('Error saving mix:', result);
-                }
-
-                successMessageElement.style.display = 'block';
-            } catch (error) {
-                console.error('Fetch error:', error);
-                successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
-                successMessageElement.style.color = 'red';
-                successMessageElement.style.display = 'block';
-            }
-        };
-
-        recorder.start();
-        console.log('Recording started');
-
-        // Stop recording after the render duration
-        setTimeout(() => {
-            recorder.stop();
-            console.log('Recording stopped after rendering');
-        }, (renderDuration + 0.5) * 1000); // Add a small buffer time
-
+            successMessageElement.style.display = 'block';
+        } catch (error) {
+            console.error('Fetch error:', error);
+            successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
+            successMessageElement.style.color = 'red';
+            successMessageElement.style.display = 'block';
+        }
     } catch (error) {
         console.error('Error during rendering:', error);
         successMessageElement.innerText = 'Error al renderizar el audio.';
@@ -263,3 +232,47 @@ document.getElementById('submit-password').addEventListener('click', async () =>
         successMessageElement.style.display = 'block';
     }
 });
+
+// Function to encode audio buffer to MP3 using lamejs
+async function encodeMp3(renderedBuffer) {
+    return new Promise((resolve, reject) => {
+        try {
+            const numChannels = renderedBuffer.numberOfChannels;
+            const sampleRate = renderedBuffer.sampleRate;
+            const bitrate = 128;
+
+            const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitrate);
+            const samplesLeft = renderedBuffer.getChannelData(0);
+            const samplesRight = numChannels > 1 ? renderedBuffer.getChannelData(1) : null;
+
+            const sampleBlockSize = 1152;
+            const mp3Data = [];
+
+            for (let i = 0; i < samplesLeft.length; i += sampleBlockSize) {
+                const leftChunk = samplesLeft.subarray(i, i + sampleBlockSize);
+                let mp3buf;
+
+                if (samplesRight) {
+                    const rightChunk = samplesRight.subarray(i, i + sampleBlockSize);
+                    mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+                } else {
+                    mp3buf = mp3encoder.encodeBuffer(leftChunk);
+                }
+
+                if (mp3buf.length > 0) {
+                    mp3Data.push(mp3buf);
+                }
+            }
+
+            const endBuf = mp3encoder.flush();
+            if (endBuf.length > 0) {
+                mp3Data.push(endBuf);
+            }
+
+            resolve(mp3Data);
+        } catch (error) {
+            console.error('Error encoding MP3:', error);
+            reject(error);
+        }
+    });
+}
