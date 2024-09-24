@@ -123,33 +123,37 @@ document.getElementById('submit-password').addEventListener('click', async () =>
     try {
         const bufferPromises = trackFiles.map((track, index) => {
             return fetch(track)
-                .then(response => response.arrayBuffer())
-                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(response => {
+                    console.log(`Fetched ${track}, status: ${response.status}`);
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    console.log(`ArrayBuffer length for ${track}: ${arrayBuffer.byteLength}`);
+                    return audioContext.decodeAudioData(arrayBuffer);
+                })
                 .then(audioBuffer => {
-                    console.log(`Audio buffer loaded for track ${index + 1}`);
+                    console.log(`Audio buffer duration for track ${index + 1}: ${audioBuffer.duration}`);
                     return audioBuffer;
+                })
+                .catch(error => {
+                    console.error(`Error loading or decoding ${track}:`, error);
+                    throw error;
                 });
         });
 
         const audioBuffers = await Promise.all(bufferPromises);
 
         // Create an offline context for rendering
+        const renderDuration = 30; // seconds
         const offlineContext = new OfflineAudioContext({
             numberOfChannels: 2,
-            length: audioContext.sampleRate * 30, // 30 seconds duration
+            length: renderDuration * audioContext.sampleRate,
             sampleRate: audioContext.sampleRate,
         });
 
         // Show rendering status message
         successMessageElement.innerText = 'Viaje sonoro iniciado';
         successMessageElement.style.color = 'blue';
-
-        // Create an array to hold source nodes
-        const sourceNodes = [];
-
-        // Current time in the offline context
-        const renderDuration = 30; // seconds
-        const fadeDuration = 2; // seconds
 
         // For each track, create a buffer source and apply volume and pan
         audioBuffers.forEach((audioBuffer, index) => {
@@ -168,19 +172,23 @@ document.getElementById('submit-password').addEventListener('click', async () =>
 
             // Start playback at time 0
             source.start(0);
-
-            // Apply fade-in and fade-out
-            gainNode.gain.setValueAtTime(0, 0); // Start at 0 volume
-            gainNode.gain.linearRampToValueAtTime(gainNodes[index].gain.value, fadeDuration); // Fade-in
-            gainNode.gain.setValueAtTime(gainNodes[index].gain.value, renderDuration - fadeDuration); // Hold volume
-            gainNode.gain.linearRampToValueAtTime(0, renderDuration); // Fade-out
-
-            sourceNodes.push(source);
         });
 
         console.log('Rendering audio...');
         const renderedBuffer = await offlineContext.startRendering();
         console.log('Audio rendering completed');
+
+        // Check the rendered buffer
+        console.log(`Rendered buffer duration: ${renderedBuffer.duration}`);
+        console.log(`Rendered buffer number of channels: ${renderedBuffer.numberOfChannels}`);
+        console.log(`Rendered buffer sample rate: ${renderedBuffer.sampleRate}`);
+
+        const sampleData = renderedBuffer.getChannelData(0);
+        let sum = 0;
+        for (let i = 0; i < sampleData.length; i++) {
+            sum += Math.abs(sampleData[i]);
+        }
+        console.log(`Sum of absolute sample values in rendered buffer: ${sum}`);
 
         // Encode the rendered buffer to MP3 using lamejs
         console.log('Encoding audio to MP3...');
@@ -241,9 +249,13 @@ async function encodeMp3(renderedBuffer) {
             const sampleRate = renderedBuffer.sampleRate;
             const bitrate = 128;
 
+            console.log(`Encoding with ${numChannels} channels at ${sampleRate} Hz`);
+
             const mp3encoder = new lamejs.Mp3Encoder(numChannels, sampleRate, bitrate);
             const samplesLeft = renderedBuffer.getChannelData(0);
             const samplesRight = numChannels > 1 ? renderedBuffer.getChannelData(1) : null;
+
+            console.log(`Samples length: ${samplesLeft.length}`);
 
             const sampleBlockSize = 1152;
             const mp3Data = [];

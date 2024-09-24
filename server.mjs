@@ -48,6 +48,7 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         return res.status(400).send('No file uploaded.');
     } else {
         console.log('Received file:', req.file.originalname);
+        console.log('File size:', req.file.size, 'bytes');
     }
 
     // Generate a unique filename based on the existing files in the GitHub repo
