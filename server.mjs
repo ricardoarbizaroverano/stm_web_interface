@@ -66,14 +66,19 @@ app.post('/upload', upload.single('file'), async (req, res) => {
             },
         });
 
-        if (!response.ok) {
+        let files = [];
+        if (response.status === 404) {
+            // Directory does not exist, so assume no existing files
+            console.log('Directory does not exist. Proceeding with empty file list.');
+            files = [];
+        } else if (!response.ok) {
             const errorText = await response.text();
             console.error('Error fetching repository contents:', errorText);
             throw new Error('Failed to fetch repository contents');
+        } else {
+            files = await response.json();
+            console.log('Existing files retrieved:', files.map((f) => f.name));
         }
-
-        const files = await response.json();
-        console.log('Existing files retrieved:', files.map((f) => f.name));
 
         // Determine the new file name
         const existingFiles = files.map((file) => file.name);
@@ -84,7 +89,8 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         let newNumber = 1;
         if (mixFiles.length > 0) {
             const lastFile = mixFiles[mixFiles.length - 1];
-            const lastNumber = parseInt(lastFile.match(/stm_mix_(\d+)\.webm/)[1], 10);
+            const match = lastFile.match(/stm_mix_(\d+)\.webm/);
+            const lastNumber = match ? parseInt(match[1], 10) : 0;
             newNumber = lastNumber + 1;
         }
 
@@ -98,14 +104,14 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const payload = {
             message: `Add ${newFileName}`,
             content: fileContent,
-            path: newFilePath,
+            branch: 'main', // Adjust if your default branch is different
         };
 
         console.log('Uploading new file to GitHub:', newFileName);
 
         // Upload the file to GitHub
         const uploadResponse = await fetch(
-            `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${newFilePath}`,
+            `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${encodeURIComponent(newFilePath)}`,
             {
                 method: 'PUT',
                 headers: {

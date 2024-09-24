@@ -2,7 +2,6 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Máquina Sonora del Tiempo</title>
     <style>
         /* Styles for the password modal */
@@ -43,44 +42,102 @@
             color: green;
             margin-top: 10px;
         }
+
+        /* Additional styles for layout */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1, h2 {
+            text-align: center;
+        }
+
+        .track-controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .controls-container {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .controls-container > div {
+            margin: 10px;
+        }
+
+        .control-label {
+            margin-bottom: 5px;
+        }
     </style>
 </head>
 <body>
     <h1>Máquina Sonora del Tiempo</h1>
 
-    <div>
-        <h2>Workers</h2>
-        <input type="range" id="volume1" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan1" min="-1" max="1" step="0.01" value="0">
-    </div>
-    <div>
-        <h2>Machines</h2>
-        <input type="range" id="volume2" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan2" min="-1" max="1" step="0.01" value="0">
-    </div>
-    <div>
-        <h2>Background</h2>
-        <input type="range" id="volume3" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan3" min="-1" max="1" step="0.01" value="0">
-    </div>
-    <div>
-        <h2>Areas</h2>
-        <input type="range" id="volume4" min="0" max="1" step="0.01" value="0.5">
-        <input type="range" id="pan4" min="-1" max="1" step="0.01" value="0">
+    <div class="controls-container">
+        <div class="track-controls">
+            <h2>Workers</h2>
+            <div>
+                <label class="control-label" for="volume1">Volumen</label><br>
+                <input type="range" id="volume1" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            <div>
+                <label class="control-label" for="pan1">Pan</label><br>
+                <input type="range" id="pan1" min="-1" max="1" step="0.01" value="0">
+            </div>
+        </div>
+        <div class="track-controls">
+            <h2>Machines</h2>
+            <div>
+                <label class="control-label" for="volume2">Volumen</label><br>
+                <input type="range" id="volume2" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            <div>
+                <label class="control-label" for="pan2">Pan</label><br>
+                <input type="range" id="pan2" min="-1" max="1" step="0.01" value="0">
+            </div>
+        </div>
+        <div class="track-controls">
+            <h2>Background</h2>
+            <div>
+                <label class="control-label" for="volume3">Volumen</label><br>
+                <input type="range" id="volume3" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            <div>
+                <label class="control-label" for="pan3">Pan</label><br>
+                <input type="range" id="pan3" min="-1" max="1" step="0.01" value="0">
+            </div>
+        </div>
+        <div class="track-controls">
+            <h2>Areas</h2>
+            <div>
+                <label class="control-label" for="volume4">Volumen</label><br>
+                <input type="range" id="volume4" min="0" max="1" step="0.01" value="0.5">
+            </div>
+            <div>
+                <label class="control-label" for="pan4">Pan</label><br>
+                <input type="range" id="pan4" min="-1" max="1" step="0.01" value="0">
+            </div>
+        </div>
     </div>
 
     <!-- Play and Stop buttons -->
-    <button id="play">Play</button>
-    <button id="stop">Stop</button>
-
-    <!-- Render and Save button -->
-    <button id="render">Renderizar y Guardar</button>
+    <div style="text-align: center;">
+        <button id="play">Play</button>
+        <button id="stop">Stop</button>
+        <button id="render">Renderizar y Guardar</button>
+    </div>
 
     <!-- Password Modal -->
     <div id="password-modal">
         <div id="password-box">
             <h3>Ingrese la contraseña del operador</h3>
             <input type="password" id="password" placeholder="Contraseña">
+            <br>
             <button id="submit-password">Confirmar</button>
             <button id="close-modal">Cerrar</button>
             <div id="success-message"></div>

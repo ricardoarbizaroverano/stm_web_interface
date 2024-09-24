@@ -114,76 +114,148 @@ document.getElementById('submit-password').addEventListener('click', async () =>
     successMessageElement.style.color = 'blue';
     successMessageElement.style.display = 'block';
 
-    // Create a destination for recording
-    const destination = audioContext.createMediaStreamDestination();
-    tracks.forEach((track, index) => {
-        track.connect(destination);
-        console.log(`Track ${index + 1} connected to recording destination`);
+    // Stop playback if any
+    audioElements.forEach((audioElement) => {
+        audioElement.pause();
     });
 
-    // Use MediaRecorder to record the output
-    const recorder = new MediaRecorder(destination.stream);
-    const chunks = [];
+    // Load audio buffers for rendering
+    try {
+        const bufferPromises = trackFiles.map((track, index) => {
+            return fetch(track)
+                .then(response => response.arrayBuffer())
+                .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+                .then(audioBuffer => {
+                    console.log(`Audio buffer loaded for track ${index + 1}`);
+                    return audioBuffer;
+                });
+        });
 
-    recorder.ondataavailable = event => {
-        chunks.push(event.data);
-        console.log('Data chunk received from recorder');
-    };
+        const audioBuffers = await Promise.all(bufferPromises);
 
-    recorder.onstop = async () => {
-        console.log('Recording stopped, processing data');
+        // Create an offline context for rendering
+        const offlineContext = new OfflineAudioContext({
+            numberOfChannels: 2,
+            length: audioContext.sampleRate * 30, // 30 seconds duration
+            sampleRate: audioContext.sampleRate,
+        });
 
-        // Check if any data was recorded
-        if (chunks.length === 0) {
-            console.error('No data recorded');
-            successMessageElement.innerText = 'Error: No se pudo grabar el audio.';
-            successMessageElement.style.color = 'red';
-            successMessageElement.style.display = 'block';
-            return;
-        }
+        // Create an array to hold source nodes
+        const sourceNodes = [];
 
-        const blob = new Blob(chunks, { type: 'audio/webm' });
-        const formData = new FormData();
-        formData.append('file', blob, 'mixture.webm');
-        formData.append('password', password); // Include password in formData
+        // Current time in the offline context
+        const renderDuration = 30; // seconds
+        const fadeDuration = 2; // seconds
 
-        // Send the audio file to the server
-        console.log('Sending audio file to server');
-        try {
-            const response = await fetch('/upload', {
-                method: 'POST',
-                body: formData
-            });
+        // For each track, create a buffer source and apply volume and pan
+        audioBuffers.forEach((audioBuffer, index) => {
+            const source = offlineContext.createBufferSource();
+            source.buffer = audioBuffer;
 
-            const result = await response.text();
-            console.log('Server response:', result);
+            const gainNode = offlineContext.createGain();
+            const pannerNode = offlineContext.createStereoPanner();
 
-            if (response.ok) {
-                successMessageElement.innerText = `Tu mezcla fue guardada con éxito: ${result}`;
-                successMessageElement.style.color = 'green';
-                console.log('Mix saved successfully');
-            } else {
-                successMessageElement.innerText = 'Error al guardar la mezcla: ' + result;
+            // Apply current volume and pan settings
+            gainNode.gain.value = gainNodes[index].gain.value;
+            pannerNode.pan.value = pannerNodes[index].pan.value;
+
+            // Connect nodes: source -> gain -> panner -> destination
+            source.connect(gainNode).connect(pannerNode).connect(offlineContext.destination);
+
+            // Start playback at time 0
+            source.start(0);
+
+            // Apply fade-in and fade-out
+            gainNode.gain.setValueAtTime(0, 0); // Start at 0 volume
+            gainNode.gain.linearRampToValueAtTime(gainNodes[index].gain.value, fadeDuration); // Fade-in
+            gainNode.gain.setValueAtTime(gainNodes[index].gain.value, renderDuration - fadeDuration); // Hold volume
+            gainNode.gain.linearRampToValueAtTime(0, renderDuration); // Fade-out
+
+            sourceNodes.push(source);
+        });
+
+        console.log('Rendering audio...');
+        const renderedBuffer = await offlineContext.startRendering();
+        console.log('Audio rendering completed');
+
+        // Convert the rendered buffer to a Blob
+        const recordedChunks = [];
+
+        const dest = audioContext.createMediaStreamDestination();
+        const playbackSource = audioContext.createBufferSource();
+        playbackSource.buffer = renderedBuffer;
+        playbackSource.connect(dest);
+        playbackSource.start();
+
+        const recorder = new MediaRecorder(dest.stream);
+
+        recorder.ondataavailable = (e) => {
+            if (e.data.size > 0) {
+                recordedChunks.push(e.data);
+                console.log('Data chunk received from recorder');
+            }
+        };
+
+        recorder.onstop = async () => {
+            console.log('Recording stopped, processing data');
+
+            // Check if any data was recorded
+            if (recordedChunks.length === 0) {
+                console.error('No data recorded');
+                successMessageElement.innerText = 'Error: No se pudo grabar el audio.';
                 successMessageElement.style.color = 'red';
-                console.error('Error saving mix:', result);
+                successMessageElement.style.display = 'block';
+                return;
             }
 
-            successMessageElement.style.display = 'block';
-        } catch (error) {
-            console.error('Fetch error:', error);
-            successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
-            successMessageElement.style.color = 'red';
-            successMessageElement.style.display = 'block';
-        }
-    };
+            const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+            const formData = new FormData();
+            formData.append('file', blob, 'mixture.webm');
+            formData.append('password', password); // Include password in formData
 
-    // Start recording
-    recorder.start();
-    console.log('Recording started');
+            // Send the audio file to the server
+            console.log('Sending audio file to server');
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
 
-    // Stop recording after 10 seconds
-    setTimeout(() => {
-        recorder.stop();
-        console.log('Recording stopped after 10 seconds');
-    }, 10000);
+                const result = await response.text();
+                console.log('Server response:', result);
+
+                if (response.ok) {
+                    successMessageElement.innerText = `Tu mezcla fue guardada con éxito: ${result}`;
+                    successMessageElement.style.color = 'green';
+                    console.log('Mix saved successfully');
+                } else {
+                    successMessageElement.innerText = 'Error al guardar la mezcla: ' + result;
+                    successMessageElement.style.color = 'red';
+                    console.error('Error saving mix:', result);
+                }
+
+                successMessageElement.style.display = 'block';
+            } catch (error) {
+                console.error('Fetch error:', error);
+                successMessageElement.innerText = 'Error al enviar la mezcla al servidor.';
+                successMessageElement.style.color = 'red';
+                successMessageElement.style.display = 'block';
+            }
+        };
+
+        recorder.start();
+        console.log('Recording started');
+
+        // Stop recording after the render duration
+        setTimeout(() => {
+            recorder.stop();
+            console.log('Recording stopped after rendering');
+        }, (renderDuration + 0.5) * 1000); // Add a small buffer time
+
+    } catch (error) {
+        console.error('Error during rendering:', error);
+        successMessageElement.innerText = 'Error al renderizar el audio.';
+        successMessageElement.style.color = 'red';
+        successMessageElement.style.display = 'block';
+    }
 });
