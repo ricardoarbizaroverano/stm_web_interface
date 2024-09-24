@@ -225,11 +225,15 @@ document.getElementById('submit-password').addEventListener('click', async () =>
                 console.log('Server response:', result);
 
                 if (response.ok) {
-                    successMessageElement.innerText = `Tu mezcla fue guardada con éxito: ${result}`;
+                    // Extract the mix number from the result
+                    const match = result.match(/stm_mix_(\d+)\.webm uploaded successfully\./);
+                    const mixNumber = match ? match[1] : '1';
+
+                    successMessageElement.innerText = `Archivo subido con éxito al llavero sonoro número ${mixNumber}.`;
                     successMessageElement.style.color = 'green';
                     console.log('Mix saved successfully');
                 } else {
-                    successMessageElement.innerText = 'Error al guardar la mezcla: ' + result;
+                    successMessageElement.innerText = 'Tuvimos un error al subir el archivo, intente nuevamente.';
                     successMessageElement.style.color = 'red';
                     console.error('Error saving mix:', result);
                 }

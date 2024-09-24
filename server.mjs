@@ -52,9 +52,10 @@ app.post('/upload', upload.single('file'), async (req, res) => {
 
     // Generate a unique filename based on the existing files in the GitHub repo
     const repoOwner = 'ricardoarbizaroverano';
-    const repoName = 'maquinasonoradeltiempo';
+    const repoName = 'stm_web_interface'; // Updated repository name
     const filePathInRepo = 'stm_users_mix'; // Directory in the repo where files are stored
-    const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePathInRepo}`;
+    const branch = 'main'; // Adjust if your default branch is different
+    const apiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${filePathInRepo}?ref=${branch}`;
 
     try {
         // Fetch existing files from the GitHub repository
@@ -104,23 +105,23 @@ app.post('/upload', upload.single('file'), async (req, res) => {
         const payload = {
             message: `Add ${newFileName}`,
             content: fileContent,
-            branch: 'main', // Adjust if your default branch is different
+            branch: branch,
         };
+
+        // Construct the upload URL without encoding slashes
+        const uploadUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${newFilePath}`;
 
         console.log('Uploading new file to GitHub:', newFileName);
 
         // Upload the file to GitHub
-        const uploadResponse = await fetch(
-            `https://api.github.com/repos/${repoOwner}/${repoName}/contents/${encodeURIComponent(newFilePath)}`,
-            {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${GITHUB_TOKEN}`,
-                    Accept: 'application/vnd.github.v3+json',
-                },
-                body: JSON.stringify(payload),
-            }
-        );
+        const uploadResponse = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${GITHUB_TOKEN}`,
+                Accept: 'application/vnd.github.v3+json',
+            },
+            body: JSON.stringify(payload),
+        });
 
         if (!uploadResponse.ok) {
             const errorText = await uploadResponse.text();
