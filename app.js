@@ -2,12 +2,15 @@
 const audioContext = new (window.AudioContext || window.webkitAudioContext)();
 console.log('AudioContext initialized:', audioContext);
 
+// Arrays to store gain and pan values
+const gainValues = [0.5, 0.5, 0.5, 0.5]; // Initial gain values
+const panValues = [0, 0, 0, 0];          // Initial pan values
+
 // Create gain nodes and panner nodes for each track
 const gainNodes = [];
 const pannerNodes = [];
 const audioElements = [];
 const trackFiles = ["1.mp3", "2.mp3", "3.mp3", "4.mp3"];
-const tracks = [];
 
 // Load the audio files and set up the audio graph
 trackFiles.forEach((track, index) => {
@@ -22,24 +25,27 @@ trackFiles.forEach((track, index) => {
     trackSource.connect(gainNode).connect(pannerNode).connect(audioContext.destination);
 
     // Set initial values for gain and pan
-    gainNode.gain.value = 0.5;  // Default volume
-    pannerNode.pan.value = 0;   // Default pan
+    gainNode.gain.value = gainValues[index];  // Default volume
+    pannerNode.pan.value = panValues[index];   // Default pan
 
     // Store nodes and elements for later control
     gainNodes.push(gainNode);
     pannerNodes.push(pannerNode);
     audioElements.push(audioElement);
-    tracks.push(trackSource);
 
     // Add event listeners for volume and pan controls
     document.getElementById(`volume${index + 1}`).addEventListener('input', (event) => {
-        gainNode.gain.value = parseFloat(event.target.value);
-        console.log(`Volume for track ${index + 1} set to:`, gainNode.gain.value);
+        const value = parseFloat(event.target.value);
+        gainNode.gain.value = value;
+        gainValues[index] = value; // Update gainValues array
+        console.log(`Volume for track ${index + 1} set to:`, value);
     });
 
     document.getElementById(`pan${index + 1}`).addEventListener('input', (event) => {
-        pannerNode.pan.value = parseFloat(event.target.value);
-        console.log(`Pan for track ${index + 1} set to:`, pannerNode.pan.value);
+        const value = parseFloat(event.target.value);
+        pannerNode.pan.value = value;
+        panValues[index] = value; // Update panValues array
+        console.log(`Pan for track ${index + 1} set to:`, value);
     });
 });
 
@@ -163,9 +169,12 @@ document.getElementById('submit-password').addEventListener('click', async () =>
             const gainNode = offlineContext.createGain();
             const pannerNode = offlineContext.createStereoPanner();
 
-            // Apply current volume and pan settings
-            gainNode.gain.value = gainNodes[index].gain.value;
-            pannerNode.pan.value = pannerNodes[index].pan.value;
+            // Apply current volume and pan settings from gainValues and panValues
+            gainNode.gain.value = gainValues[index];
+            pannerNode.pan.value = panValues[index];
+
+            console.log(`Applying gain for track ${index + 1}: ${gainValues[index]}`);
+            console.log(`Applying pan for track ${index + 1}: ${panValues[index]}`);
 
             // Connect nodes: source -> gain -> panner -> destination
             source.connect(gainNode).connect(pannerNode).connect(offlineContext.destination);
