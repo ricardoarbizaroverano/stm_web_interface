@@ -228,7 +228,17 @@ document.getElementById('submit-password').addEventListener('click', async () =>
         // Play the rendered buffer in the browser for testing
         playRenderedBuffer(renderedBuffer);
 
-        // Encode the rendered buffer to MP3 using lamejs
+        // Encode the rendered buffer to WAV format and play it
+        console.log('Encoding audio to WAV...');
+        const wavBlob = bufferToWav(renderedBuffer);
+        const wavUrl = URL.createObjectURL(wavBlob);
+
+        // Play the WAV file in the browser
+        const wavAudio = new Audio(wavUrl);
+        wavAudio.play();
+        console.log('Playing encoded WAV in browser for testing');
+
+        // Proceed with MP3 encoding using lame.all.js
         console.log('Encoding audio to MP3...');
         const mp3Data = await encodeMp3(renderedBuffer);
         console.log('MP3 encoding completed');
@@ -291,6 +301,61 @@ function playRenderedBuffer(buffer) {
     console.log('Playing rendered buffer in browser');
 }
 
+// Function to encode audio buffer to WAV format
+function bufferToWav(buffer) {
+    const numChannels = buffer.numberOfChannels;
+    const sampleRate = buffer.sampleRate;
+    const numFrames = buffer.length;
+
+    const wavBuffer = new ArrayBuffer(44 + numFrames * numChannels * 2);
+    const view = new DataView(wavBuffer);
+
+    // Write WAV container
+    let offset = 0;
+
+    // RIFF chunk descriptor
+    writeString(view, offset, 'RIFF'); offset += 4;
+    view.setUint32(offset, 36 + numFrames * numChannels * 2, true); offset += 4; // file length - 8
+    writeString(view, offset, 'WAVE'); offset += 4;
+
+    // FMT sub-chunk
+    writeString(view, offset, 'fmt '); offset += 4;
+    view.setUint32(offset, 16, true); offset += 4; // SubChunk1Size (16 for PCM)
+    view.setUint16(offset, 1, true); offset += 2;  // AudioFormat (1 for PCM)
+    view.setUint16(offset, numChannels, true); offset += 2; // NumChannels
+    view.setUint32(offset, sampleRate, true); offset += 4; // SampleRate
+    view.setUint32(offset, sampleRate * numChannels * 2, true); offset += 4; // ByteRate
+    view.setUint16(offset, numChannels * 2, true); offset += 2; // BlockAlign
+    view.setUint16(offset, 16, true); offset += 2; // BitsPerSample
+
+    // Data sub-chunk
+    writeString(view, offset, 'data'); offset += 4;
+    view.setUint32(offset, numFrames * numChannels * 2, true); offset += 4; // SubChunk2Size
+
+    // Write interleaved PCM samples
+    let interleaved = new Int16Array(numFrames * numChannels);
+    let index = 0;
+    for (let i = 0; i < numFrames; i++) {
+        for (let channel = 0; channel < numChannels; channel++) {
+            const sample = buffer.getChannelData(channel)[i];
+            const intSample = Math.max(-1, Math.min(1, sample)) * 32767;
+            interleaved[index++] = intSample;
+        }
+    }
+
+    for (let i = 0; i < interleaved.length; i++, offset += 2) {
+        view.setInt16(offset, interleaved[i], true);
+    }
+
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+    }
+}
+
 // Function to encode audio buffer to MP3 using lamejs
 async function encodeMp3(renderedBuffer) {
     return new Promise((resolve, reject) => {
@@ -324,6 +389,11 @@ async function encodeMp3(renderedBuffer) {
                 if (mp3buf.length > 0) {
                     mp3Data.push(mp3buf);
                 }
+
+                // Log progress every 100 chunks
+                if (i % (sampleBlockSize * 100) === 0) {
+                    console.log(`Encoded ${i} samples`);
+                }
             }
 
             const endBuf = mp3encoder.flush();
@@ -331,9 +401,10 @@ async function encodeMp3(renderedBuffer) {
                 mp3Data.push(endBuf);
             }
 
+            console.log('MP3 encoding completed successfully');
             resolve(mp3Data);
         } catch (error) {
-            console.error('Error encoding MP3:', error);
+            console.error('Error during MP3 encoding:', error);
             reject(error);
         }
     });
